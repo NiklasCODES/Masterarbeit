@@ -28,16 +28,19 @@ class DataFrameProcessor:
         self.min_date = self.df[date_column].min()
         self.max_date = self.df[date_column].max()
 
-    def reset_df(self, df):
+    def reset_df(self, df, full_reset=False):
         '''
         Resetting the dataframe. This is good after aggregating and filtering, if the UI is updated with filters.
         Args:
             df: the dataframe
         '''
-        self.df = df.copy()
-        self.df[self.date_column] = pd.to_datetime(self.df[self.date_column].astype(str), format='%Y%m%d')
-        if self.withGraph:
-            self.df[self.graph] = self.label
+        if full_reset:
+            self.df = df.copy()
+        else:
+            self.df = df.copy()
+            self.df[self.date_column] = pd.to_datetime(self.df[self.date_column].astype(str), format='%Y%m%d')
+            if self.withGraph:
+                self.df[self.graph] = self.label
 
 
     def insert_empty_row_at_pos(self, pos):

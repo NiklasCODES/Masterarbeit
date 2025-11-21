@@ -1,0 +1,108 @@
+```{r}
+# libraries
+install.packages("forecast")
+install.packages("lubridate")
+
+```
+
+```{r}
+library(lubridate)
+library(forecast)
+library(dplyr)
+library(fastDummies)
+library(ggplot2)
+```
+
+```{r}
+df <- read.csv("C:\\Users\\nrotter\\Documents\\VSCode\\Masterarbeit\\data\\anonymized_sales.csv")
+```
+
+```{r}
+
+df <- fastDummies::dummy_cols(df, select_columns="Niederlassung")
+df <- fastDummies::dummy_cols(df, select_columns="Dummy.Bestellkanal")
+df$dt_datum <- as.Date(as.character(df$Datum), format="%Y%m%d")
+```
+
+```{r}
+
+grouped <- df %>%
+  group_by(Datum) %>%
+  summarise(total_Verkaufsmenge = sum(Verkaufsmenge))
+  
+print(grouped)
+```
+
+```{r}
+
+acf(grouped$total_Verkaufsmenge)
+pacf(grouped$total_Verkaufsmenge)
+
+```
+
+```{r}
+grouped$x <- 1:length(grouped$total_Verkaufsmenge)
+mts <- ts(grouped$total_Verkaufsmenge[0:(-15)], start = decimal_date(ymd(as.character(grouped$Datum[1]))))
+
+grouped$pred_state <- as.character(predicted_states$state)
+
+fit <- auto.arima(mts)
+
+forecasted_values <- forecast(fit, 14)
+forecasted_values$x <- tail(grouped$x, 14)
+
+cols <- c("1" = "black", "2" = "red", "3" = "yellow")
+
+print(forecasted_values)
+pred_df <- data.frame(x = forecasted_values$x, y = forecasted_values$mean)
+
+ggplot(grouped, aes(x = x, y = total_Verkaufsmenge)) +
+  geom_line(color = "steelblue", linewidth = 1) +
+  labs(
+    title = "Verkaufsmenge über die Zeit",
+    x = "Datum",
+    y = "Verkaufsmenge"
+  ) +
+  geom_line(data = pred_df , mapping = aes(x = x, y = y), linewidth= 1) +
+  geom_point(data = grouped , mapping = aes(x = x, y = total_Verkaufsmenge, color = pred_state)) +
+  scale_color_manual(values = c("1" = "black", "2" = "red", "3" = "yellow"))
+  theme_classic()
+
+
+```
+
+```{r}
+install.packages("depmixS4")
+library(depmixS4)
+```
+
+```{r}
+
+n_states <- 3 # Number of hidden states (Dry and Wet)
+hmm_model <- depmix(grouped$total_Verkaufsmenge ~ 1, family = gaussian(), nstates = n_states, 
+                    data = data.frame(grouped$x))
+
+set.seed(123)  # For reproducibility
+hmm_fit <- fit(hmm_model)
+
+transition_probs <- getpars(hmm_fit)[1:9]
+transition_probs <- matrix(transition_probs, nrow = 3, byrow = TRUE)
+colnames(transition_probs) <- c("cold", "normal", "hot")
+rownames(transition_probs) <- c("cold", "normal", "hot")
+print("Transition Probabilities:")
+print(transition_probs)
+
+# Get the emission probabilities
+emission_probs <- getpars(hmm_fit)[10:18]
+emission_probs <- matrix(emission_probs, nrow = 3, byrow = TRUE)
+colnames(emission_probs) <- c("low", "mid", "high")
+rownames(emission_probs) <- c("low", "mid", "high")
+print("Emission Probabilities:")
+print(emission_probs)
+
+# Predict the hidden states
+predicted_states <- posterior(hmm_fit)
+print("Predicted States:")
+print(predicted_states)
+
+```

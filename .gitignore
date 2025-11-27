@@ -6,6 +6,8 @@ __pycache__/
 # C extensions
 *.so
 
+data/anonymized_sales.csv
+
 # Distribution / packaging
 .Python
 build/
